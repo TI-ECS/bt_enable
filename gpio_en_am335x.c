@@ -40,8 +40,21 @@
 #include <linux/delay.h>
 #include <linux/gpio.h>
 
+#define AM33XX_CTRL_REGADDR(reg)					\
+		AM33XX_L4_WK_IO_ADDRESS(AM33XX_SCM_BASE + (reg))
+
+/* bit 3: 0 - enable, 1 - disable for pull enable */
+#define AM33XX_PULL_DISA		(1 << 3)
+#define AM33XX_PULL_ENBL		(0 << 3)
+
 /* Convert GPIO signal to GPIO pin number */
 #define GPIO_TO_PIN(bank, gpio) (32 * (bank) + (gpio))
+
+/* Bluetooth Enable PAD for EVM Rev 1.1 and up */
+#define AM33XX_CONTROL_PADCONF_MCASP0_AHCLKX_OFFSET		0x09AC
+
+/* Bluetooth Enable PAD for EVM Rev 1.0 */
+#define AM33XX_CONTROL_PADCONF_GPMC_CSN2_OFFSET			0x0884
 
 /* 
    Define wl12xx_platform_data prototype here for using with first kernel versions
@@ -62,6 +75,8 @@ struct wl12xx_platform_data {
 const struct wl12xx_platform_data *wl12xx_get_platform_data(void);
 
 unsigned char bt_enable_pin;
+int selected_pad;
+int pad_mux_value;
 
 static int __init gpio_test_init(void)
 {
@@ -77,18 +92,35 @@ static int __init gpio_test_init(void)
 		bt_enable_pin = GPIO_TO_PIN(1, 31); 
 	}
 
+	/* Select pad conf register based on EVM board rev */
+	if ( bt_enable_pin == GPIO_TO_PIN(3, 21) )	
+		selected_pad = AM33XX_CONTROL_PADCONF_MCASP0_AHCLKX_OFFSET;
+	else
+		selected_pad = AM33XX_CONTROL_PADCONF_GPMC_CSN2_OFFSET;
+ 
 	printk("Gpio value is :%d\n", bt_enable_pin);
-	gpio_set_value(bt_enable_pin, 0);
+	gpio_direction_output(bt_enable_pin, 0);
 	msleep(1);
 	printk("WL1271: BT Enable\n");
-	gpio_set_value(bt_enable_pin, 1);
+	gpio_direction_output(bt_enable_pin, 1);
+
+	/* Enable pullup on the enable pin for keeping BT active during suspend */
+	pad_mux_value = readl(AM33XX_CTRL_REGADDR(selected_pad));
+	pad_mux_value &= (~AM33XX_PULL_DISA);
+	writel(pad_mux_value, AM33XX_CTRL_REGADDR(selected_pad));
+
 	return 0;
 }
 
 static void __exit gpio_test_exit(void)
 {
 	printk("WL1271: BT Disable\n");
-        gpio_set_value(bt_enable_pin, 0);
+        gpio_direction_output(bt_enable_pin, 0);
+
+	/* Disable pullup on the enable pin to allow BT shut down during suspend */
+	pad_mux_value = readl(AM33XX_CTRL_REGADDR(selected_pad));
+	pad_mux_value |= AM33XX_PULL_DISA;
+	writel(pad_mux_value, AM33XX_CTRL_REGADDR(selected_pad));
 }
 
 
