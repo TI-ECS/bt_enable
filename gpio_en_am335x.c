@@ -39,6 +39,7 @@
 #include <linux/moduleparam.h>
 #include <linux/delay.h>
 #include <linux/gpio.h>
+#include <linux/wl12xx.h>
 
 #define AM33XX_CTRL_REGADDR(reg)					\
 		AM33XX_L4_WK_IO_ADDRESS(AM33XX_SCM_BASE + (reg))
@@ -55,22 +56,6 @@
 
 /* Bluetooth Enable PAD for EVM Rev 1.0 */
 #define AM33XX_CONTROL_PADCONF_GPMC_CSN2_OFFSET			0x0884
-
-/* 
-   Define wl12xx_platform_data prototype here for using with first kernel versions
-   that didn't pass the enable pins elements 
-*/
-struct wl12xx_platform_data {
-	void (*set_power)(bool enable);
-	/* SDIO only: IRQ number if WLAN_IRQ line is used, 0 for SDIO IRQs */
-	int irq;
-	bool use_eeprom;
-	int board_ref_clock;
-	int board_tcxo_clock;
-	unsigned long platform_quirks;
-	int bt_enable_gpio;
-	int wlan_enable_gpio;
-};
 
 const struct wl12xx_platform_data *wl12xx_get_platform_data(void);
 
